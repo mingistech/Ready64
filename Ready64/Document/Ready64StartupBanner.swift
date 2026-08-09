@@ -5,6 +5,7 @@ enum Ready64StartupBanner {
     /// Exact text inserted at the top of a new document when the setting is on.
     /// This becomes real document content and will be saved with the file.
     static let text = """
+
           **** COMMODORE 64 BASIC V2 ****
 
       64K RAM SYSTEM  38911 BASIC BYTES FREE
