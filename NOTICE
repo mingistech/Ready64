@@ -1,0 +1,26 @@
+Ready64
+Copyright (c) 2026 Brandon Thompson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+See the LICENSE file for the full text of the GNU General Public License.
+
+-------------------------------------------------------------------------------
+
+Third-party components
+======================
+
+cool-retro-term CRT shaders and noise texture
+--------------------------------------------
+Copyright (c) 2013-2021 Filippo Scognamiglio
+https://github.com/Swordfish90/cool-retro-term
+
+Licensed under the GNU General Public License, version 3 or later.
+
+Vendored originals live in:
+  Ready64/Resources/ThirdParty/cool-retro-term/
+
+Ready64's Metal CRT pipeline in Ready64/CRT/ is adapted from those shaders.

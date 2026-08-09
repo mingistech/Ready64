@@ -11,12 +11,13 @@ struct Ready64TextView: NSViewRepresentable {
 
     var theme: Ready64Theme = .current
     var font: NSFont = Ready64Font.editorFont()
+    var crtParameters: CRTEffectParameters = .default
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    func makeNSView(context: Context) -> Ready64EditorHostView {
         Ready64Font.registerBundledFonts()
 
         let scrollView = NSScrollView()
@@ -79,18 +80,23 @@ struct Ready64TextView: NSViewRepresentable {
 
         scrollView.documentView = textView
 
+        let host = Ready64EditorHostView(scrollView: scrollView)
+        host.crtParameters = crtParameters
+
         // Defer first-responder so the view is in a window before focusing.
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
         }
 
-        return scrollView
+        return host
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+    func updateNSView(_ host: Ready64EditorHostView, context: Context) {
         Ready64Font.registerBundledFonts()
         context.coordinator.text = $text
+        host.crtParameters = crtParameters
 
+        let scrollView = host.scrollView
         guard let textView = scrollView.documentView as? Ready64NSTextView else { return }
 
         var textReplaced = false

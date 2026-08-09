@@ -2,6 +2,21 @@ import SwiftUI
 
 /// Ready64 > Settings… window.
 struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettingsTab()
+                .tabItem { Label("General", systemImage: "gearshape") }
+
+            EffectsSettingsTab()
+                .tabItem { Label("Effects", systemImage: "tv") }
+        }
+        .frame(width: 540, height: 860)
+    }
+}
+
+// MARK: - General
+
+private struct GeneralSettingsTab: View {
     @AppStorage(Ready64Settings.typefaceKey)
     private var typefaceRaw = Ready64Settings.defaultTypeface.rawValue
 
@@ -57,7 +72,71 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 720)
+        .padding()
+    }
+}
+
+// MARK: - Effects (cool-retro-term one-to-one)
+
+private struct EffectsSettingsTab: View {
+    @AppStorage(Ready64Settings.crtBloomKey)
+    private var bloom = Double(CRTEffectParameters.default.bloom)
+
+    @AppStorage(Ready64Settings.crtBurnInKey)
+    private var burnIn = Double(CRTEffectParameters.default.burnIn)
+
+    @AppStorage(Ready64Settings.crtStaticNoiseKey)
+    private var staticNoise = Double(CRTEffectParameters.default.staticNoise)
+
+    @AppStorage(Ready64Settings.crtJitterKey)
+    private var jitter = Double(CRTEffectParameters.default.jitter)
+
+    @AppStorage(Ready64Settings.crtGlowLineKey)
+    private var glowingLine = Double(CRTEffectParameters.default.glowingLine)
+
+    @AppStorage(Ready64Settings.crtAmbientLightKey)
+    private var ambientLight = Double(CRTEffectParameters.default.ambientLight)
+
+    @AppStorage(Ready64Settings.crtFlickeringKey)
+    private var flickering = Double(CRTEffectParameters.default.flickering)
+
+    @AppStorage(Ready64Settings.crtHorizontalSyncKey)
+    private var horizontalSync = Double(CRTEffectParameters.default.horizontalSync)
+
+    @AppStorage(Ready64Settings.crtRgbShiftKey)
+    private var rgbShift = Double(CRTEffectParameters.default.rgbShift)
+
+    @AppStorage(Ready64Settings.crtFrameShininessKey)
+    private var frameShininess = Double(CRTEffectParameters.default.frameShininess)
+
+    @AppStorage(Ready64Settings.crtContrastKey)
+    private var contrast = Double(CRTEffectParameters.default.contrast)
+
+    @AppStorage(Ready64Settings.crtSaturationKey)
+    private var saturation = Double(CRTEffectParameters.default.saturation)
+
+    var body: some View {
+        Form {
+            Section {
+                CheckableSlider(name: "Bloom", value: $bloom, defaultOnValue: 0.55)
+                CheckableSlider(name: "BurnIn", value: $burnIn, defaultOnValue: 0.25)
+                CheckableSlider(name: "Static Noise", value: $staticNoise, defaultOnValue: 0.12)
+                CheckableSlider(name: "Jitter", value: $jitter, defaultOnValue: 0.20)
+                CheckableSlider(name: "Glow Line", value: $glowingLine, defaultOnValue: 0.20)
+                CheckableSlider(name: "Ambient Light", value: $ambientLight, defaultOnValue: 0.20)
+                CheckableSlider(name: "Flickering", value: $flickering, defaultOnValue: 0.10)
+                CheckableSlider(name: "Horizontal Sync", value: $horizontalSync, defaultOnValue: 0.08)
+                CheckableSlider(name: "RGB Shift", value: $rgbShift, defaultOnValue: 0.20)
+                CheckableSlider(name: "Frame Shininess", value: $frameShininess, defaultOnValue: 0.20)
+                CheckableSlider(name: "Contrast", value: $contrast, defaultOnValue: 0.80)
+                CheckableSlider(name: "Saturation", value: $saturation, defaultOnValue: 0.25)
+            } header: {
+                Text("Effects")
+            } footer: {
+                Text("Slider ranges and scaling match cool-retro-term. Uncheck an effect to set it to 0%. CRT presentation never changes your saved text files.")
+            }
+        }
+        .formStyle(.grouped)
         .padding()
     }
 }
@@ -68,8 +147,6 @@ private struct StartupBannerPreview: View {
     let typeface: Ready64Typeface
 
     private var lines: [String] {
-        // Keep empty lines for vertical spacing; drop a single trailing empty
-        // entry produced by the final newline in the banner string.
         var parts = Ready64StartupBanner.text.split(
             separator: "\n",
             omittingEmptySubsequences: false

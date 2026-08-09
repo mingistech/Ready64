@@ -12,8 +12,9 @@ Ready64 is a native macOS plain-text editor that recreates the look and feel of 
 - `NSTextView` editing engine (undo/redo, selection, clipboard, find, scrolling)
 - UTF-8 plain-text documents (`.txt`) — open/save with TextEdit, BBEdit, VS Code, etc.
 - C64-inspired colors, monospaced fonts, and blinking block cursor
+- Optional CRT filter (bloom, burn-in, noise, glow) adapted from [cool-retro-term](https://github.com/Swordfish90/cool-retro-term)
 - Optional classic startup banner for new documents
-- Settings for font choice and new-document banner
+- Settings for font, CRT effects, and new-document banner
 - No networking, accounts, telemetry, or proprietary document format
 
 ## Requirements
@@ -88,7 +89,8 @@ Documents remain ordinary UTF-8 text. The retro UI never owns the file format.
 | `Ready64NSTextView` | Block cursor + indicator suppression |
 | `Ready64TextStorage` | Avoids AppKit font substitution for legacy C64 faces |
 | `Ready64Theme` / `Ready64Font` / `Ready64Layout` | Centralized palette, typeface, geometry |
-| `SettingsView` | Font + startup-banner preferences |
+| `CRT/` | Metal CRT post-process (cool-retro-term–adapted) |
+| `SettingsView` | Font, CRT, and startup-banner preferences |
 
 ### Current theme colors
 
@@ -111,14 +113,14 @@ Only add or redistribute fonts if their licenses allow it. See `Ready64/Resource
 - The blinking **block cursor** is drawn by Ready64; modern macOS `NSTextInsertionIndicator` is suppressed.
 - Soft wrapping is a view concern only and does not alter saved newlines.
 - Unicode is fully supported in the document model; glyph coverage depends on the selected font.
-- Default new-window size is 911×540 points; editor font size defaults to 27pt with a little extra line spacing.
+- Default new-window size is 911×683 points; editor font size defaults to 27pt with a little extra line spacing.
 
 ## Roadmap (not implemented yet)
 
 - Authentic 40×25 / 80-column viewing modes
 - Additional Commodore palettes / user themes
 - PETSCII palette / authentic input mode
-- CRT scanlines, glow, curvature
+- Burn-in / advanced cool-retro-term effect passes
 - Boot animation separate from document text
 - Status bar (line/column, counts)
 - Markdown / `.log` / extensionless text as first-class types
@@ -132,6 +134,8 @@ Only add or redistribute fonts if their licenses allow it. See `Ready64/Resource
 
 ## License
 
-Ready64 source is released under the MIT License. See [LICENSE](LICENSE).
+Ready64 is released under the **GNU General Public License v3 or later**. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Bundled third-party fonts remain under their own licenses; do not assume MIT covers those files.
+CRT shader code and the noise texture are adapted from [cool-retro-term](https://github.com/Swordfish90/cool-retro-term) by Filippo Scognamiglio (GPL-3.0-or-later). Vendored originals are under `Ready64/Resources/ThirdParty/cool-retro-term/`.
+
+Bundled third-party fonts remain under their own licenses; do not assume GPL covers those files.

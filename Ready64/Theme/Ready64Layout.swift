@@ -26,7 +26,7 @@ enum Ready64Layout {
     static var columnMode: ColumnMode = .unrestricted
 
     /// Default window content size that feels like a C64 screen on modern displays.
-    static let defaultContentSize = CGSize(width: 911, height: 540)
+    static let defaultContentSize = CGSize(width: 911, height: 683)
 
     /// Minimum window content size.
     static let minimumContentSize = CGSize(width: 420, height: 320)

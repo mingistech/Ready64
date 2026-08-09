@@ -20,6 +20,10 @@ final class Ready64NSTextView: NSTextView {
     /// relative to the line-fragment box.
     private var systemCaretRect: NSRect = .zero
 
+    /// Fine-tune block cursor vertical placement (points). Positive = up.
+    /// NSTextView is flipped, so we subtract this from `origin.y`.
+    private let blockCursorYOffset: CGFloat = 2
+
     override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
         super.init(frame: frameRect, textContainer: container)
         commonInit()
@@ -151,6 +155,7 @@ final class Ready64NSTextView: NSTextView {
             if block.size.height < 1 {
                 block.size.height = max(font.ascender - font.descender, font.pointSize * 0.8)
             }
+            block.origin.y -= blockCursorYOffset
             return block.integral
         }
 
@@ -169,7 +174,7 @@ final class Ready64NSTextView: NSTextView {
         if textLength == 0 {
             return NSRect(
                 x: origin.x + textContainer.lineFragmentPadding,
-                y: origin.y,
+                y: origin.y - blockCursorYOffset,
                 width: cellWidth,
                 height: cellHeight
             ).integral
@@ -191,7 +196,7 @@ final class Ready64NSTextView: NSTextView {
             if lastCharacter == 10 || lastCharacter == 13 {
                 return NSRect(
                     x: origin.x + textContainer.lineFragmentPadding,
-                    y: origin.y + lineRect.maxY,
+                    y: origin.y + lineRect.maxY - blockCursorYOffset,
                     width: cellWidth,
                     height: cellHeight
                 ).integral
@@ -202,7 +207,7 @@ final class Ready64NSTextView: NSTextView {
             )
             return NSRect(
                 x: origin.x + glyphRect.maxX,
-                y: origin.y + lineRect.minY,
+                y: origin.y + lineRect.minY - blockCursorYOffset,
                 width: cellWidth,
                 height: max(lineRect.height, cellHeight * 0.85)
             ).integral
@@ -210,7 +215,7 @@ final class Ready64NSTextView: NSTextView {
 
         return NSRect(
             x: origin.x + lineRect.minX + caretLocation.x,
-            y: origin.y + lineRect.minY,
+            y: origin.y + lineRect.minY - blockCursorYOffset,
             width: cellWidth,
             height: max(lineRect.height, cellHeight * 0.85)
         ).integral
