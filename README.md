@@ -4,7 +4,7 @@
 
 Ready64 is a native macOS plain-text editor that recreates the look and feel of the classic Commodore 64 BASIC screen. It is **not** an emulator, BASIC interpreter, or VIC-II reimplementation. Under the C64 skin it behaves like a real Mac text editor.
 
-![Ready64 editing surface showing the classic COMMODORE 64 BASIC V2 startup banner and block cursor](docs/ready64-editor.png)
+![Ready64 1.1 with CRT effects — COMMODORE 64 BASIC V2 startup banner, bloom, and block cursor](docs/ready64-1.1-crt.png)
 
 ## Highlights
 
