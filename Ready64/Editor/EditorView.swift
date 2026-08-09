@@ -81,6 +81,8 @@ struct EditorView: View {
         .ignoresSafeArea()
         .background(WindowChromeConfigurator())
         .toolbarBackground(.hidden, for: .windowToolbar)
+        .navigationTitle("")
+        .modifier(HideToolbarTitleModifier())
         .frame(
             minWidth: Ready64Layout.minimumContentSize.width,
             minHeight: Ready64Layout.minimumContentSize.height

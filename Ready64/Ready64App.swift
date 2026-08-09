@@ -11,6 +11,7 @@ struct Ready64App: App {
         DocumentGroup(newDocument: TextDocument.makeNew()) { file in
             EditorView(document: file.$document)
         }
+        .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(
             width: Ready64Layout.defaultContentSize.width,
             height: Ready64Layout.defaultContentSize.height
