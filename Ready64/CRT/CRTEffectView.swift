@@ -46,7 +46,16 @@ final class CRTEffectView: MTKView {
 
     weak var sourceView: NSView?
     var parameters = CRTEffectParameters.default {
-        didSet { syncPauseState() }
+        didSet {
+            // User changed Effects — allow CRT to try again after a prior macOS 26 fallback.
+            if oldValue != parameters {
+                captureDisabledForSession = false
+                fallbackRetryCount = 0
+                consecutiveCaptureFailures = 0
+                useLiveEditorFallback = false
+            }
+            syncPauseState()
+        }
     }
 
     var effectActive = true {
@@ -69,6 +78,16 @@ final class CRTEffectView: MTKView {
     private var startTime = CACurrentMediaTime()
     private var burnInLastUpdate: Float = 0
     private var burnInPrevUpdate: Float = 0
+    /// Consecutive failed rasterize attempts (empty / black / nil texture).
+    private var consecutiveCaptureFailures = 0
+    /// When true, hide the Metal overlay so the live NSTextView shows through.
+    private var useLiveEditorFallback = false
+    /// After a few failed retries, stop re-enabling CRT for this window session
+    /// so macOS 26 can't flash an opaque black MTKView every couple seconds.
+    private var captureDisabledForSession = false
+    private var fallbackRetryCount = 0
+    private var fallbackRetryWorkItem: DispatchWorkItem?
+    private let maxFallbackRetries = 3
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device ?? MTLCreateSystemDefaultDevice())
@@ -83,24 +102,86 @@ final class CRTEffectView: MTKView {
     private func commonInit() {
         framebufferOnly = false
         colorPixelFormat = .bgra8Unorm
-        clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        // Match C64 screen so a missed frame never flashes pure black.
+        let screen = Ready64Theme.classic.screenBackground
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        screen.usingColorSpace(.sRGB)?.getRed(&r, green: &g, blue: &b, alpha: &a)
+        clearColor = MTLClearColor(red: Double(r), green: Double(g), blue: Double(b), alpha: 1)
         enableSetNeedsDisplay = false
         preferredFramesPerSecond = 30
         autoResizeDrawable = true
-        layer?.isOpaque = true
+        // Non-opaque so AppKit is less likely to cull drawing of the scroll view
+        // underneath (occlusion + empty captures → black screen on macOS 26).
+        layer?.isOpaque = false
+        clearDepth = 1
 
-        guard let device else { return }
+        guard let device else {
+            // No Metal → never cover the live editor.
+            captureDisabledForSession = true
+            useLiveEditorFallback = true
+            syncPauseState()
+            return
+        }
         commandQueue = device.makeCommandQueue()
         buildPipelines(device: device)
         buildSamplers(device: device)
         noiseTexture = Self.loadNoiseTexture(device: device)
+        if pipelineState == nil || noiseTexture == nil || commandQueue == nil {
+            captureDisabledForSession = true
+            useLiveEditorFallback = true
+        }
         syncPauseState()
     }
 
     private func syncPauseState() {
-        let on = parameters.isActive && effectActive
+        let on = parameters.isActive && effectActive && !useLiveEditorFallback && !captureDisabledForSession
         isHidden = !on
         isPaused = !on
+    }
+
+    private func noteCaptureFailure() {
+        consecutiveCaptureFailures += 1
+        // Hide quickly — don't wait for many black frames on macOS 26.
+        guard consecutiveCaptureFailures >= 2, !useLiveEditorFallback else { return }
+        enterLiveEditorFallback(scheduleRetry: fallbackRetryCount < maxFallbackRetries)
+    }
+
+    private func enterLiveEditorFallback(scheduleRetry: Bool) {
+        useLiveEditorFallback = true
+        syncPauseState()
+        if scheduleRetry {
+            scheduleFallbackRetry()
+        } else {
+            captureDisabledForSession = true
+            fallbackRetryWorkItem?.cancel()
+            fallbackRetryWorkItem = nil
+            syncPauseState()
+        }
+    }
+
+    private func noteCaptureSuccess() {
+        consecutiveCaptureFailures = 0
+        fallbackRetryCount = 0
+        captureDisabledForSession = false
+        fallbackRetryWorkItem?.cancel()
+        fallbackRetryWorkItem = nil
+        guard useLiveEditorFallback else { return }
+        useLiveEditorFallback = false
+        syncPauseState()
+    }
+
+    private func scheduleFallbackRetry() {
+        fallbackRetryWorkItem?.cancel()
+        let delay = 2.0 * Double(fallbackRetryCount + 1)
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.captureDisabledForSession else { return }
+            self.fallbackRetryCount += 1
+            self.useLiveEditorFallback = false
+            self.consecutiveCaptureFailures = 0
+            self.syncPauseState()
+        }
+        fallbackRetryWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -233,6 +314,8 @@ final class CRTEffectView: MTKView {
     private func render() {
         guard parameters.isActive,
               effectActive,
+              !useLiveEditorFallback,
+              !captureDisabledForSession,
               let sourceView,
               let drawable = currentDrawable,
               let pipelineState,
@@ -243,12 +326,20 @@ final class CRTEffectView: MTKView {
               let device,
               let commandBuffer = commandQueue.makeCommandBuffer()
         else {
+            // CRT is supposed to be on but Metal / source isn't ready — don't leave a black cover.
+            if parameters.isActive && effectActive && !useLiveEditorFallback && !captureDisabledForSession {
+                if pipelineState == nil || commandQueue == nil || noiseTexture == nil || device == nil || sourceView == nil {
+                    noteCaptureFailure()
+                }
+            }
             return
         }
 
         guard let sourceTexture = captureSourceTexture(from: sourceView, device: device) else {
+            noteCaptureFailure()
             return
         }
+        noteCaptureSuccess()
 
         let time = Float(CACurrentMediaTime() - startTime)
         let width = Float(max(bounds.width, 1))
@@ -381,12 +472,109 @@ final class CRTEffectView: MTKView {
     }
 
     private func captureSourceTexture(from view: NSView, device: MTLDevice) -> MTLTexture? {
-        let size = view.bounds.size
-        guard size.width > 1, size.height > 1 else { return nil }
-        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        guard let cgImage = rep.cgImage else { return nil }
+        let bounds = view.bounds
+        guard bounds.width > 1, bounds.height > 1 else { return nil }
 
+        // Explicit bitmap + displayIgnoringOpacity is more reliable than
+        // cacheDisplay when a sibling Metal view covers the editor (macOS 26
+        // occlusion / layer-backed NSTextView often yielded an empty black frame).
+        let scale = max(view.window?.backingScaleFactor
+                        ?? view.window?.screen?.backingScaleFactor
+                        ?? NSScreen.main?.backingScaleFactor
+                        ?? 2.0,
+                        1.0)
+        let pixelWidth = max(Int((bounds.width * scale).rounded(.up)), 1)
+        let pixelHeight = max(Int((bounds.height * scale).rounded(.up)), 1)
+
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixelWidth,
+            pixelsHigh: pixelHeight,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 32
+        ) else {
+            return nil
+        }
+        rep.size = bounds.size
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        guard let graphics = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.current = graphics
+
+        // Paint the C64 screen color first so a partial draw never reads as black.
+        Ready64Theme.classic.screenBackground.setFill()
+        bounds.fill()
+
+        view.layoutSubtreeIfNeeded()
+
+        // Prefer the document view (NSTextView) so we don't depend on scroll-view
+        // layer compositing that can be culled when covered by Metal.
+        if let scroll = view as? NSScrollView, let document = scroll.documentView {
+            let clip = scroll.contentView
+            let visible = clip.documentVisibleRect
+            if visible.width > 1, visible.height > 1 {
+                let cg = graphics.cgContext
+                cg.saveGState()
+                // Map document-visible rect into the host bitmap (origin top-left of clip).
+                let offsetX = -visible.origin.x
+                let offsetY = -visible.origin.y
+                cg.translateBy(x: offsetX, y: offsetY)
+                document.displayIgnoringOpacity(visible, in: graphics)
+                cg.restoreGState()
+            } else {
+                view.displayIgnoringOpacity(bounds, in: graphics)
+            }
+        } else {
+            view.displayIgnoringOpacity(bounds, in: graphics)
+        }
+
+        // Reject near-black frames (failed rasterize that overwrote the blue fill).
+        if Self.isNearlyBlack(rep) {
+            // Last-chance: classic cacheDisplay path.
+            if let cached = view.bitmapImageRepForCachingDisplay(in: bounds) {
+                view.cacheDisplay(in: bounds, to: cached)
+                if let cgImage = cached.cgImage, !Self.isNearlyBlack(cached) {
+                    return Self.makeTexture(from: cgImage, device: device)
+                }
+            }
+            return nil
+        }
+
+        guard let cgImage = rep.cgImage else { return nil }
+        return Self.makeTexture(from: cgImage, device: device)
+    }
+
+    /// True when sampled pixels are essentially black (failed capture), not C64 blue.
+    private static func isNearlyBlack(_ rep: NSBitmapImageRep) -> Bool {
+        let w = rep.pixelsWide
+        let h = rep.pixelsHigh
+        guard w > 0, h > 0 else { return true }
+        let points = [
+            (w / 2, h / 2),
+            (w / 4, h / 3),
+            (3 * w / 4, h / 3),
+            (w / 4, 2 * h / 3),
+            (3 * w / 4, 2 * h / 3)
+        ]
+        var sum: CGFloat = 0
+        var count: CGFloat = 0
+        for (x, y) in points {
+            guard let c = rep.colorAt(x: x, y: y) else { continue }
+            sum += c.redComponent + c.greenComponent + c.blueComponent
+            count += 1
+        }
+        guard count > 0 else { return true }
+        // C64 blue (~0.18+0.16+0.59 ≈ 0.93). Pure black ≈ 0.
+        return (sum / count) < 0.12
+    }
+
+    private static func makeTexture(from cgImage: CGImage, device: MTLDevice) -> MTLTexture? {
         let width = cgImage.width
         let height = cgImage.height
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(

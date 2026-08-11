@@ -17,10 +17,18 @@ final class Ready64EditorHostView: NSView {
         super.init(frame: .zero)
 
         wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
+        // C64 blue — never pure black under the CRT overlay / during fallback.
+        layer?.backgroundColor = Ready64Theme.classic.screenBackground.cgColor
 
         scrollView.translatesAutoresizingMaskIntoConstraints = true
         scrollView.autoresizingMask = [.width, .height]
+        // Keep the live editor drawing even when covered by the Metal overlay.
+        scrollView.wantsLayer = true
+        scrollView.layerContentsRedrawPolicy = .duringViewResize
+        if let document = scrollView.documentView {
+            document.wantsLayer = true
+            document.layerContentsRedrawPolicy = .duringViewResize
+        }
 
         crtView.translatesAutoresizingMaskIntoConstraints = true
         crtView.autoresizingMask = [.width, .height]
@@ -40,6 +48,14 @@ final class Ready64EditorHostView: NSView {
         super.layout()
         scrollView.frame = bounds
         crtView.frame = bounds
+        // Keep live editor above a failed/hidden CRT path for hit-testing/compositing.
+        if crtView.isHidden {
+            scrollView.layer?.zPosition = 1
+            crtView.layer?.zPosition = 0
+        } else {
+            scrollView.layer?.zPosition = 0
+            crtView.layer?.zPosition = 1
+        }
     }
 
     private func applyCRTState() {
